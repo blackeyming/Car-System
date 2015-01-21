@@ -1,0 +1,665 @@
+#ifndef _CAR_SYSTEM_CCM
+#define _CAR_SYSTEM_CCM
+#include<iostream>
+#include<string>
+#include<assert.h>
+using namespace std;
+
+/********************************
+	模拟一辆汽车违规信息的采集和查询
+*********************************/
+/*一辆车： 包含驾驶员 和 违规信息 */
+/*1. 违规信息*/
+class CarInfo{
+public:
+	CarInfo(int carId,bool isOnRedLight,bool isAccident)
+		  :CarId(carId),IsOnRedLight(isOnRedLight),IsAccident(isAccident)
+	{}
+	CarInfo(const CarInfo & otherCarInfo)
+		:CarId(otherCarInfo.CarId),IsOnRedLight(otherCarInfo.IsOnRedLight),IsAccident(otherCarInfo.IsAccident)
+	{}
+	CarInfo():CarId(0),IsOnRedLight(false),IsAccident(false){}
+	CarInfo operator=(const CarInfo & rhs){
+		if(this!=&rhs){
+			this->CarId=rhs.CarId;
+			this->IsAccident=rhs.IsAccident;
+			this->IsOnRedLight=rhs.IsOnRedLight;
+		}
+		return *this;
+	}
+	int* GetCarId(){
+		return &CarId;
+	}
+	bool* CheckIsOnRedLight(){
+		return &IsOnRedLight;
+	}
+	bool* CheckIsAccident(){
+		return &IsAccident;
+	}
+	void SetCarId(const int &carId)
+	{
+		CarId=carId;
+	}
+	void SetIsOnRedLight(const bool &isOnRedLight)
+	{
+		IsOnRedLight=isOnRedLight;
+	}
+	void SetIsAccident(const bool &isAccident)
+	{
+		IsAccident=isAccident;
+	}
+private:
+	int CarId;
+	bool IsOnRedLight; /*IsOnRedLight: 闯红灯；*/
+	bool IsAccident;   /*IsAccident： 交通事故*/
+};
+/*2. 车主*/
+class Person{
+public:
+	Person(int Id, string name):ID(Id),Name(name){}
+	Person(const Person & OtherPerson):ID(OtherPerson.ID),Name(OtherPerson.Name){}
+	Person():ID(0),Name("Nobody"){};
+	Person operator=(const Person & rhs){
+		if(this!=&rhs){
+			this->ID=rhs.ID;
+			this->Name=rhs.Name;
+		}
+		return *this;
+	}
+	int* GetPersonID(){
+		return &ID;
+	}
+	string* GetPersonName(){
+		return &Name;
+	}
+	void SetID(const int &Id)
+	{
+		ID=Id;
+	}
+	void SetName(const string &name)
+	{
+		Name=name;
+	}
+private:
+	int ID;
+	string Name;
+};
+
+/*车*/
+class Car{
+
+public:
+	Car(CarInfo carInfo,Person owner):CarTrafficInfo(carInfo),Owner(owner){}
+	Car(const Car & otherCar):CarTrafficInfo(otherCar.CarTrafficInfo),Owner(otherCar.Owner){}
+    Car operator=(const Car &otherCar){
+		if(this!=&otherCar){
+			this->CarTrafficInfo=otherCar.CarTrafficInfo;
+			this->Owner=otherCar.Owner;
+		}
+		return *this;
+	}
+	Car(const int personId, const string personName,const int carId,      /*赋值时： 先车主后车信息*/
+        const bool isAccidentPanish,const bool isInRedRightPanish)  
+		:CarTrafficInfo(carId,isInRedRightPanish,isAccidentPanish),
+		Owner(personId,personName){}  
+	Car():CarTrafficInfo(0,false,false),Owner(0,"Nobody"){}  /*ID为0的车是未上牌的， ID为0的人是不存在的*/
+
+	/*类的操作面向的是它的私有成员变量，不要干超出这个对象的变量操作，那是另一个类的问题了*/
+	/*面向的是整个类的修改，所以返回值应是类的指针*/
+	Car* SetCarTrafficInfo(const CarInfo &OtherCarInfo)   /*写*/
+	{
+		CarTrafficInfo=OtherCarInfo;  /*operator=() 属于CarInfo 对象*/
+		return this;
+	}
+	Car* SetCarTrafficInfo(const int & CarId, const bool &IsRedLightPannish, const bool &IsAccidentPannish)
+	{
+		CarInfo newCarInfo(CarId,IsRedLightPannish,IsAccidentPannish);
+		SetCarTrafficInfo(newCarInfo);
+		return this;
+	}
+	Car* SetOwner(const Person &OtherOwner)
+	{
+		Owner=OtherOwner;
+		return this;
+	}
+	Car* SetOwner(const int & OwnerId, const string &OwnerName)
+	{
+		Person newOwner(OwnerId,OwnerName);
+		SetOwner(newOwner);
+		return this;
+	}
+
+	CarInfo* GetCarTrafficInfo()  	/*读*/   
+	{
+		return &CarTrafficInfo;
+	}
+	Person* GetOwner(){
+		return &Owner;
+	}
+
+	/*GetCarByCarId 和 GetCarByOwnerId 服务于搜索，保证最基本单位是本类的私有成员*/
+    Car* GetCarByCarId(const int &CarId)
+	{
+		if(CarId<=0 || CarId >1000)
+		{
+			cout<<"CarId is out of range in GetCarByCarId() "<<endl;
+		}
+		if( CarId==*CarTrafficInfo.GetCarId())
+		{
+			return this;
+		}
+		return NULL;
+	}
+	Car* GetCarByOwnerId(const int &OwnerId)
+	{
+		if(OwnerId<=0 || OwnerId >1000)
+		{
+			cout<<"OwnerId is out of range in GetCarByCarId() "<<endl;
+		}
+		if( OwnerId==*Owner.GetPersonID())
+		{
+			return this;
+		}
+		return NULL;
+	}
+private:
+	CarInfo CarTrafficInfo;
+	Person Owner;
+};
+
+/*一个信息采集器： 至多可以采集10辆汽车的信息
+	               面向的对象是车子，所以只能输入车类型变量
+*/
+
+class Viewer{
+public :
+	Viewer(const Car &car,const int &viewerId=0):ViewerId(viewerId){  /*ViewerId==0 代表这是个非法的Viewer
+																	   *每个viewer只能有一个正数的Id。
+																	   */
+		Initialize();  /*当一个viewer诞生时总是处于初始化的状态，然后再添加信息*/
+		CurrentCarNumber++;
+		CarArray[CurrentCarNumber-1]=car;
+	}
+	Viewer(const int &viewerId=0):CurrentCarNumber(0),ViewerId(viewerId){} /*默认的构造函数时，只能使用AddCar()函数添加信息*/
+	Viewer operator=(const Viewer &rhs){    /*将不用的viewer信息传送应不影响信息本身的封装，改变的是viewer*/
+		if(this!=&rhs){
+			this->CurrentCarNumber=rhs.CurrentCarNumber;
+			for(int i=0;i<this->CurrentCarNumber;i++){
+				this->CarArray[i]=rhs.CarArray[i]; 
+			}
+			this->ViewerId=rhs.ViewerId;
+		}
+		return *this;
+	}
+	bool operator==(const Viewer &rhs) /*此处若用==，那么上面也得修改，更好的封装*/
+	{
+		if(this->ViewerId==rhs.ViewerId)
+		{
+			return true;
+		}
+		return false;
+	}
+	bool IsCarInArray(const Car &newCar){
+		/*newCar 为 const 型 ， 禁止调用 返回带私有成员指针 的成员函数*/
+		Car carPointer;
+		carPointer=newCar;
+		for(int i=0;i<MaxCarNum;i++){
+			if( *(carPointer.GetCarTrafficInfo()->GetCarId())== *(CarArray[i].GetCarTrafficInfo()->GetCarId()))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	bool AddCar(const Car &newCar){
+		if(IsCarInArray(newCar))
+		{
+			cout<<"car is already in the carArray， you should reset the CarId"<<endl;
+			return false;
+		}  
+		/*车 满 了 ， 先 入 者 先 出 */
+		if(CurrentCarNumber>=MaxCarNum){
+			ReMoveFirstCar(); /*私有成员函数*/
+		}
+		CurrentCarNumber++;  /*先增加数量再引用下标*/
+		CarArray[CurrentCarNumber-1]=newCar;
+		
+		return true;
+	}
+	bool AddCar(const int personId, const string personName
+		          ,const int CarId,const bool isInRedRight,const bool isAccidentPanish)
+	{
+		if( CarId<=0 || CarId >=1000 ) /* CarId 必须为正数,同时不应超出int类型的存储范围 */
+		{
+			cout<<"CarId is illegal in AddCar()"<<endl;
+			return false;
+		}
+		if(personId<=0 || personId >=1000)
+		{
+			cout<<"personId is illegal in AddCar()"<<endl;  /*更合理的是抛出异常 throw try catch语句*/
+			return false;
+		}
+
+		Car newCar(personId,personName,CarId,isInRedRight,isAccidentPanish);
+		bool AddCarDone=AddCar(newCar); /*这里应判断返回值，当newCar已在存储器中时返回false*/
+		return AddCarDone;
+	}
+
+	void Initialize()
+	{
+		CurrentCarNumber=0;
+	}
+	/*为保证采集信息的可靠性，监视器只允许读操作*/
+	int* GetCurrentCarNumber(){
+		return &CurrentCarNumber;
+	}
+	/*一车可以有多条记录， 引入时间成员可以丰富功能，这里暂不考虑*/
+	Car* GetCarInArrayByCarId(const int &CarId){
+		if( CarId <=0 || CarId >=1000 )  /*可以剥离出一个函数*/
+		{
+			cout<<"CarId is out of range _ in  GetCarArrayByIndex()"<<endl;
+			return NULL;
+		}
+		for(int i=0;i<CurrentCarNumber;i++)
+		{
+			Car* IsGetCarDone=CarArray[i].GetCarByCarId(CarId);
+			if(NULL!=IsGetCarDone)
+				return IsGetCarDone;
+		}
+		return NULL;
+	}
+	/*人与车是一对多的关系，这里暂不考虑，只是返回第一个符合的*/
+	Car* GetCarInArrayByOwnerId(const int &OwnerId){  
+		if( OwnerId <=0 || OwnerId >=1000 )  /*可以剥离出一个函数? */
+		{
+			cout<<"OwnerId is out of range _ in  GetCarArrayByIndex()"<<endl;
+			return NULL;
+		}
+		for(int i=0;i<CurrentCarNumber;i++)
+		{
+			Car* IsGetCarDone=CarArray[i].GetCarByOwnerId(OwnerId);
+			if(NULL!=IsGetCarDone)
+				return IsGetCarDone;
+		}
+		return NULL;
+	}
+	/*对 viewerID的读写操作*/
+	int * GetViewerId()
+	{
+		return &ViewerId;
+	}
+	void SetViewerId(const int &viewerId)
+	{
+		ViewerId=viewerId;
+	}
+	Viewer* GetViewerByViewerId(const int & viewerId)
+	{
+		if(this->ViewerId == viewerId)
+		{
+			return this;
+		}
+		return NULL;
+	}
+private: 
+	static const int MaxCarNum=20; /*最多存储20辆车的信息*/ 
+    int CurrentCarNumber;  /* CurrentCarNumber：定义的次序很重要 */
+    Car CarArray[MaxCarNum];
+	int ViewerId;
+	void ReMoveFirstCar(){ 
+		for(int i=1; i<MaxCarNum;i++)
+		{
+			CarArray[i-1]=CarArray[i];
+		}
+		CurrentCarNumber--;  /**/
+	}
+};
+
+/*一个信息存储器： 只能存放信息采集器
+	               存储器是连接信息采集器和查询平台的
+				   作为接口类使用
+*/
+class DataCenter{           /*DataCenter 与 Viewer 的实现逻辑是一样的，可以考虑继承还是接口还是模板？*/
+public:
+	DataCenter(const DataCenter &otherDataCenter)  
+	{
+		CurViewerNum=otherDataCenter.CurViewerNum;
+		for (int i=0;i<CurViewerNum;i++)
+		{
+			ViewerArray[i]=otherDataCenter.ViewerArray[i];
+		}
+	    
+	}
+	DataCenter(Viewer &newViewer)
+	{
+		/*判断 newViewer是否合法*/
+		if( *newViewer.GetViewerId() <= 0 )
+		{
+			cout<<"the viewerId is illegal , you should reset it"<<endl; /*这里抛出异常*/
+			return ;
+		}
+		Initialize();
+		CurViewerNum++;
+		ViewerArray[CurViewerNum-1]=newViewer;
+	}
+	DataCenter operator=(const DataCenter &rhs){
+	  if(this!=&rhs){
+		 DataCenter::DataCenter(rhs);
+	  }
+	  return *this;
+	}
+	DataCenter()
+	{
+		Initialize();
+	}
+	/*手动录入数据*/
+	DataCenter(const int &personId, const string &personName,const int &CarId
+		        ,const bool isInRedRight,const bool isAccidentPanish,const int &viewerId)
+	{
+		if(personId<=0 || personId>=1000 || CarId<=0 || CarId >=1000 || viewerId <=0 || viewerId >=1000)
+		{
+			cout<<"There is Variable out of range"<<endl;
+			return ;
+		}
+		Initialize();
+		CurViewerNum++;
+		ViewerArray[CurViewerNum-1].AddCar(personId,personName,CarId,isInRedRight,isAccidentPanish);
+		ViewerArray[CurViewerNum-1].SetViewerId(viewerId);
+	}
+	DataCenter(const Car &CarItem)
+	{
+		Initialize();
+		CurViewerNum++;
+		ViewerArray[CurViewerNum-1].AddCar(CarItem);
+	}
+	void Initialize()
+	{
+		CurViewerNum=0;
+	}
+    /*数据中心的数据是只读的*/ 
+	/*Viewer* GetData_ReturnViewer()
+	{
+		return &viewer;
+	}*/
+	const int * GetCurViewerNum()  /*返回值是否允许被修改*/ 
+	{
+		return &CurViewerNum;
+	}
+
+	Viewer* GetData_ReturnViewerByViewerId(const int & viewerId)
+	{
+		if( viewerId<=0 || viewerId>1000 )
+		{
+			cout<<"the viewerId you look for is out of range"<<endl;
+		}
+			
+		for(int i=0;i<CurViewerNum;i++)
+		{
+		    Viewer *GetViewerDone=ViewerArray[i].GetViewerByViewerId(viewerId); /*为了封装而增加GetViewerByViewerId（）*/
+			if(NULL!=GetViewerDone)
+			{
+				return GetViewerDone;
+			}
+		}
+		return NULL;
+	}
+	Viewer * GetData_RetrunViewerByViewer(Viewer & viewerFound)
+	{
+		return GetData_ReturnViewerByViewerId( *viewerFound.GetViewerId());
+	}
+	bool IsViewerInArray(const Viewer& newViewer)
+	{
+		for(int i=0;i<CurViewerNum;i++)
+		{
+			if(ViewerArray[i]==newViewer)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	bool AddViewer( Viewer& newViewer)
+	{
+		if(0>*newViewer.GetViewerId() || *newViewer.GetViewerId()>=1000)
+		{
+			cout<<"ViewerId of newViewer to add is out of range"<<endl;
+			return false;
+		}
+		if(IsViewerInArray(newViewer))
+		{
+			cout<<"Viewer to add is already in array"<<endl;
+			return false;
+		}
+		if(IsViewerArrayFull())
+		{
+			RemoveFirstViewer();
+		}
+		
+		CurViewerNum++;
+		ViewerArray[CurViewerNum-1]=newViewer;
+		return true;
+	}
+	/*数据中心可以删除数据*/
+	bool DeleteViewer(Viewer &DeleteViewer)
+	{
+		if(!IsViewerInArray(DeleteViewer))  /*这样重复遍历数组，逻辑是清晰了，但是效率下降了*/
+		{
+			cout<<"can't delete unexist Viewer "<<endl;
+			return false;
+		}
+		//DataCenter::GetData_RetrunViewerByViewer(DeleteViewer);
+		int ViewerFoundIdx=-1;
+		for(int i=0;i<CurViewerNum;i++)
+		{
+			if(DeleteViewer==ViewerArray[i])
+			{
+				ViewerFoundIdx=i;
+			}
+		}
+	    assert(-1!=ViewerFoundIdx);
+		for(int i=ViewerFoundIdx;i<CurViewerNum;i++)
+		{
+			if(i<CurViewerNum-1)
+			{
+				ViewerArray[i]=ViewerArray[i+1];
+			}
+		}
+		CurViewerNum--;
+		return true;
+	}
+private:
+	static const int ViewerSizeInDataCenter=20; /* 最 多 20 个 viewer , 最多可以保存20*20条车信息*/
+	int CurViewerNum;
+	Viewer ViewerArray[ViewerSizeInDataCenter];
+
+	bool IsViewerArrayFull()
+	{
+		return CurViewerNum>=ViewerSizeInDataCenter;
+	}
+	void RemoveFirstViewer()
+	{
+		for(int i=1;i<CurViewerNum;i++)
+		{
+			ViewerArray[i-1]=ViewerArray[i];
+		}
+		CurViewerNum--;
+	}
+	
+};
+
+/*一个查询平台：只能查询信息存储器*/
+class Searcher{
+public:
+	static bool Search(DataCenter & dataCenter, const int &viewerId,const int &CarId)
+	{
+		Viewer * GetViewerDone=dataCenter.GetData_ReturnViewerByViewerId(viewerId);
+
+		if(NULL!=GetViewerDone)
+		{
+			Car * GetCarDone=GetViewerDone->GetCarInArrayByCarId(CarId);
+			if(NULL!=GetCarDone)
+			{
+				OutputCarInfos(dataCenter,viewerId,CarId);
+				return true;
+			}
+		}
+		cout<<"Sorry,the Car you are looking for is not exist ."<<endl;
+		return false;
+	}
+	
+private:
+	static void OutputCarInfos(DataCenter & dataCenter, const int &viewerId,const int &CarId)
+	{
+		Car * GetCar=dataCenter.GetData_ReturnViewerByViewerId(viewerId)->GetCarInArrayByCarId(CarId);
+		cout<<"Owner Id: "<<*GetCar->GetOwner()->GetPersonID()<<endl;
+		cout<<"Owner Name: "<<*GetCar->GetOwner()->GetPersonName()<<endl;
+		cout<<"CarId: "<<*GetCar->GetCarTrafficInfo()->GetCarId()<<endl;
+		cout<<"Car IsOnRedLight: "<<*GetCar->GetCarTrafficInfo()->CheckIsOnRedLight()<<endl;
+		cout<<"Car IsAccident: "<<*GetCar->GetCarTrafficInfo()->CheckIsAccident()<<endl;
+	}
+};
+
+/*测试 输出函数接口*/
+
+void CarInfoOutput( CarInfo &Item)
+{
+	cout<<"CarId "<<*Item.GetCarId()<<endl;
+	cout<<"Car isInRedLight "<<*Item.CheckIsOnRedLight()<<endl;
+	cout<<"Car isAccident "<<*Item.CheckIsAccident()<<endl;
+}
+
+void PersonOutput(Person &Item)
+{   
+	cout<<"PeronId "<<*Item.GetPersonID()<<endl;
+	cout<<"PersonName "<<*Item.GetPersonName()<<endl;
+}
+
+void CarOutput(Car* &Item)
+{
+	if(NULL!=Item)
+	{   
+		cout<<"PersonId "<<*Item->GetOwner()->GetPersonID()<<endl;
+		cout<<"PersonName "<<*Item->GetOwner()->GetPersonName()<<endl;
+		cout<<"CarId "<<*Item->GetCarTrafficInfo()->GetCarId()<<endl;
+		cout<<"Car IsInRedLight "<<*Item->GetCarTrafficInfo()->CheckIsOnRedLight()<<endl;
+		cout<<"Car IsAccident "<<*Item->GetCarTrafficInfo()->CheckIsAccident()<<endl;
+		
+	}
+	else
+	{
+		cout<<"Item is NULL"<<endl;
+	}
+}
+
+int main()
+{
+	/***CarInfo Test***/
+	/*CarInfo carInfo(1,false,false);
+	carInfo.SetCarId(2);
+	carInfo.SetIsAccident(true);
+	carInfo.SetIsOnRedLight(true);
+	CarInfo carInfo2=carInfo;
+	CarInfoOutput(carInfo2);
+	CarInfo carInfo3(carInfo);
+	CarInfoOutput(carInfo3);*/
+
+	/***Person Test***/
+	/*Person Owner(1,"Chenchuming");
+	Owner.SetID(3);
+	Owner.SetName("chenchumingccm");
+	Person Owner1=Owner;
+	Owner1.SetID(4);
+	PersonOutput(Owner1);*/
+
+	/***Car Test***/
+	/*Car * car=new Car(1,"Lazzy Cat",2,false,false);
+	CarOutput(car);
+	car->GetCarTrafficInfo()->SetCarId(4);
+	car->GetOwner()->SetName("shabby Dog");
+	car->SetCarTrafficInfo(3,true,false);
+	car->SetOwner(5,"Happy bird");
+	Car * newCar(car);
+	CarOutput(newCar);
+	Car* newCar1=car->GetCarByCarId(1);
+	Car* newCar2=car->GetCarByOwnerId(5);
+	CarOutput(newCar1);
+	CarOutput(newCar2);
+	delete car;
+	car=NULL;
+	newCar=NULL;
+	newCar1=NULL;
+	newCar2=NULL;*/
+
+	/***Viewer test***/
+    /*Car car(1,"Lazzy",2,false,false);
+	Viewer viewer(car);
+	Car car1(1,"Lazzy",3,false,false); 
+	viewer.AddCar(car1);
+	cout<<*viewer.GetCurrentCarNumber()<<endl;
+	Car * newCar=viewer.GetCarArrayByCarId(2); 
+	CarOutput(newCar);
+	Car * newCar1=viewer.GetCarArrayByCarId(3);
+	CarOutput(newCar1);
+	newCar1=viewer.GetCarArrayByOwnerId(1);
+	CarOutput(newCar1);
+	Viewer newViewer=viewer;
+	Car * newCar2=newViewer.GetCarArrayByCarId(2); 
+	cout<<"newViewer:"<<endl;
+	CarOutput(newCar2);*/
+	/* bug: newCar3=null ,
+	 * *null 不合法,应尽量使用指针来操作
+	 */
+	/*Car * newCar3=NULL; 
+	cout<<"is car In array? "<<viewer.IsCarInArray(*newCar3)<<endl; */ 
+
+
+	/*DataCenter Test*/
+	//Car car(1,"slowly Pig",2,false,false);
+	//Viewer viewer(car,1);
+	//cout<<"viewerId is:"<<*viewer.GetViewerId()<<endl;
+	//DataCenter datacenter(viewer);
+	//Viewer viewer1=viewer;
+	//cout<<"viewer1Id is:"<<*viewer1.GetViewerId()<<endl;
+	//cout<<"IsViewerInArray(viewer)"<<datacenter.IsViewerInArray(viewer)<<endl;
+	//cout<<"(viewer1==viewer)"<<(viewer1==viewer)<<endl;
+	//Viewer viewer2(car,2);
+	//cout<<"(viewer1==viewer2)"<<(viewer1==viewer2)<<endl;
+	//cout<<*datacenter.GetCurViewerNum()<<endl;
+	//datacenter.AddViewer(viewer1);
+	//cout<<*datacenter.GetCurViewerNum()<<endl;
+	//viewer1.SetViewerId(2);
+	//cout<<datacenter.AddViewer(viewer1);
+	//cout<<*datacenter.GetCurViewerNum()<<endl;
+	//cout<<"is it succeed in deleting viewer1 "<<datacenter.DeleteViewer(viewer1)<<endl;
+	//cout<<*datacenter.GetCurViewerNum()<<endl;
+	//cout<<*datacenter.GetData_ReturnViewerByViewerId(1)->GetCarInArrayByCarId(2)->GetOwner()->GetPersonName()<<endl;
+	//cout<<*datacenter.GetData_RetrunViewerByViewer(viewer)->GetCarInArrayByCarId(2)->GetOwner()->GetPersonName()<<endl;
+	//
+	//DataCenter newDataCenter(1,"hot dog",9,false,false,4);
+	///*cout<<*newDataCenter.GetCurViewerNum()<<endl;
+	//cout<<newDataCenter.AddViewer(viewer)<<endl;
+	//cout<<*newDataCenter.GetCurViewerNum()<<endl;*/  
+	//
+	//DataCenter newDataCenterCopy(newDataCenter);/*数组这样复制 占用很多内存，容易内存溢出*/
+ //   cout<<*newDataCenterCopy.GetData_ReturnViewerByViewerId(4)->GetCarInArrayByCarId(9)->GetOwner()->GetPersonName()<<endl;
+	///*这就是没有使用指针的弊病，当返回的值为NULL时无法避免*NULL 的非法访问*/
+
+	/********************************
+	模拟一辆汽车违规信息的采集和查询
+	*********************************/
+	/*一辆车： 包含驾驶员 和 违规信息 */
+
+	/*一个信息采集器： 至多可以采集100辆汽车的信息
+	                   面向的对象是车子，所以只能输入车类型变量
+	*/
+	/*一个信息存储器： 只能存放信息采集器
+	                   存储器是连接信息采集器和查询平台的
+	*/
+
+	/*一个查询平台：只能查询信息存储器*/
+	//
+    DataCenter newDataCenter2(1,"hot dog",9,false,false,4);
+	Searcher::Search(newDataCenter2,4,9);
+	system("pause");
+	return 0;
+}
+#endif
